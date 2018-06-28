@@ -31,7 +31,6 @@ class RTM(url: String, username: String, password: String) {
     val pairs = fields.map { it.name }.zip(sqlTypes)
   }
 
-
   fun convertType(s: String): String {
     when (s) {
       "java.lang.String" -> return "text"
@@ -64,10 +63,10 @@ class RTM(url: String, username: String, password: String) {
     val fields = obj::class.declaredMemberProperties
     val values = fields.map {
       it.isAccessible = true
-      println(it.returnType.toString())
       if (it.returnType.toString().equals("kotlin.String"))
         "'${it.getter.call(obj)}'"
       else it.getter.call(obj)
+      //println(it.name + " " + it.getter.call(obj))
     }
     val rs = db.metaData.getTables(null, "public", "%", null)
     val tables = ArrayList<String>()
@@ -82,9 +81,45 @@ class RTM(url: String, username: String, password: String) {
     val metaColums = db.metaData.getColumns(null, "public", table, null)
     while (metaColums.next())
       colums.add(metaColums.getString("COLUMN_NAME"))
-    println(colums)
-    val statement = "insert into $tableName (${ colums.map { it }.joinToString(", ") }) values (${ values.map { it }.joinToString(", ") })"
+    val statement = "insert into $tableName (${ colums.map { it }.sorted().joinToString(", ") }) values (${ values.map { it }.joinToString(", ") })"
     println(statement)
+    try {
       db.createStatement().execute(statement)
+    } catch (p: PSQLException) {
+      createTable(obj::class.java)
+      insert(obj)
+    }
+  }
+
+  fun select(t: Class<*>, column: String? = "*", id: Int? = null): ArrayList<ArrayList<String>> {
+    val tableName = t.annotations.find { it is Table }?.let { (it as Table).name }
+        ?: throw IllegalArgumentException("Object should be represented as table")
+    var statement = "select $column from $tableName"
+    if (id != null) { statement += " where id = $id" }
+    val result = db.createStatement().executeQuery(statement)
+    val resArray = ArrayList<String>()
+    val answer = ArrayList<ArrayList<String>>()
+    var c = 0
+    if (column.equals("*")) {
+        while (result.next()) {
+          for (cName in t.declaredFields)
+            resArray.add(result.getString(cName.name))
+        }
+      while (resArray.size != 0) {
+        answer.add(resArray.subList(0, t.declaredFields.size).toCollection(ArrayList()))
+        //println(answer)
+        for (i in 0..(t.declaredFields.size - 1)) {
+          resArray.remove(resArray[0])
+        }
+      }
+    } else {
+      while (result.next())
+        resArray.add(result.getString(column))
+      while (resArray.size != 0) {
+        answer.add(arrayListOf(resArray[0]))
+        resArray.remove(resArray[0])
+      }
+    }
+    return answer
   }
 }
