@@ -99,7 +99,6 @@ class RTM(url: String, username: String, password: String) {
     val result = db.createStatement().executeQuery(statement)
     val resArray = ArrayList<String>()
     val answer = ArrayList<ArrayList<String>>()
-    var c = 0
     if (column.equals("*")) {
         while (result.next()) {
           for (cName in t.declaredFields)
@@ -107,7 +106,6 @@ class RTM(url: String, username: String, password: String) {
         }
       while (resArray.size != 0) {
         answer.add(resArray.subList(0, t.declaredFields.size).toCollection(ArrayList()))
-        //println(answer)
         for (i in 0..(t.declaredFields.size - 1)) {
           resArray.remove(resArray[0])
         }
@@ -121,5 +119,24 @@ class RTM(url: String, username: String, password: String) {
       }
     }
     return answer
+  }
+
+  fun update(t: Class<*>, column: String, value: Any, id: Int){
+    val tableName = t.annotations.find { it is Table }?.let { (it as Table).name }
+        ?: throw IllegalArgumentException("Object should be represented as table")
+    var tValue = ""
+    if (value.javaClass.typeName.equals("java.lang.String"))
+      tValue = "'$value'"
+    else tValue = value.toString()
+    val statement = "update $tableName set $column = $tValue where id = $id"
+    println(statement)
+    db.createStatement().execute(statement)
+  }
+
+  fun delete(t: Class<*>, id: Int) {
+    val tableName = t.annotations.find { it is Table }?.let { (it as Table).name }
+        ?: throw IllegalArgumentException("Object should be represented as table")
+    val statement = "delete from $tableName where id = $id"
+    db.createStatement().execute(statement)
   }
 }
